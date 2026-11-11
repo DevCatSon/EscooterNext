@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest a focused product or developer improvement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: 'Describe what you need to do and the affected app/platform.'
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives
+    validations:
+      required: true

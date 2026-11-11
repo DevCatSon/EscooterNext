@@ -1,0 +1,35 @@
+name: Bug report
+description: Report an app or documentation problem without private data
+body:
+  - type: markdown
+    attributes:
+      value: 'Review logs and screenshots for personal data before attaching them.'
+  - type: dropdown
+    id: app
+    attributes:
+      label: Affected implementation
+      options: [Flutter Android, Flutter iOS, Documentation or CI]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: App version/build or commit and phone OS
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps, expected result and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: scooter
+    attributes:
+      label: Scooter model, protocol, firmware and region if relevant
+      description: 'No Bluetooth addresses, serial numbers or account details. Say if this was Demo Mode.'
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Minimal reviewed logs or screenshots
+      description: 'Do not upload complete device databases, extracted apps, provisioning profiles or private logs.'

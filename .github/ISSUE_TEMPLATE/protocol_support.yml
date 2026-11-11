@@ -1,0 +1,31 @@
+name: Scooter protocol or model evidence
+description: Propose an evidence-backed integration or compatibility record
+body:
+  - type: markdown
+    attributes:
+      value: 'Read docs/ble/README.md and docs/ble/CAPTURE_GUIDE.md first. A requested model is not yet a supported model. Do not attach extracted applications or private captures.'
+  - type: input
+    id: model
+    attributes:
+      label: Scooter model and firmware, region if known
+    validations:
+      required: true
+  - type: dropdown
+    id: category
+    attributes:
+      label: Evidence category
+      options: [Source trace, Sanitized capture or physical test, Existing protocol with new model data, Request with no protocol evidence yet]
+    validations:
+      required: true
+  - type: textarea
+    id: transport
+    attributes:
+      label: Advertisement, GATT layout and authentication requirements
+      description: 'Use sanitized names and service/characteristic UUIDs; omit device IDs and credentials.'
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Findings, tested actions and remaining unknowns
+      description: 'Separate write success, acknowledgement, reported state and observed physical result. Include permitted source references or minimal sanitized vectors.'
+    validations:
+      required: true

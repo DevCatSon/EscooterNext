@@ -1,0 +1,33 @@
+﻿# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Release signing - NEVER commit these
+*.jks
+*.keystore
+**/keystore.properties
+
+# OS noise
+.DS_Store
+Thumbs.db
+
+# Local data, credentials and generated distribution artifacts
+.kotlin/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+!.env.sample
+*.p12
+*.pfx
+*.mobileprovision
+*.apk
+*.aab
+*.ipa
+*.log
+captures/
+local-data/

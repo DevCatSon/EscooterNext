@@ -1,0 +1,61 @@
+diff --git a/packages/xcross/lib/src/composition/cli/flutter_run_command.dart b/packages/xcross/lib/src/composition/cli/flutter_run_command.dart
+index 77a5ffa..58260ce 100644
+--- a/packages/xcross/lib/src/composition/cli/flutter_run_command.dart
++++ b/packages/xcross/lib/src/composition/cli/flutter_run_command.dart
+@@ -211,0 +212,2 @@ final class FlutterRunCommand<T extends PlatformHostInterface>
++      buildName: runtime.runner.effectiveEnvironment['XCROSS_BUILD_NAME'],
++      buildNumber: runtime.runner.effectiveEnvironment['XCROSS_BUILD_NUMBER'],
+diff --git a/packages/xcross/lib/src/shared/flutter/flutter_bundle_assembler.dart b/packages/xcross/lib/src/shared/flutter/flutter_bundle_assembler.dart
+index d0cadc6..65a20c0 100644
+--- a/packages/xcross/lib/src/shared/flutter/flutter_bundle_assembler.dart
++++ b/packages/xcross/lib/src/shared/flutter/flutter_bundle_assembler.dart
+@@ -0,0 +1,2 @@
++import 'dart:convert';
++
+@@ -266,0 +269 @@ final class FlutterBundleAssembler<T extends PlatformHostInterface>
++    plistXml = await _stageAppIcons(bundleDir, plistXml);
+@@ -271,0 +275,44 @@ final class FlutterBundleAssembler<T extends PlatformHostInterface>
++  /// Windows has no actool: stage the bundled icon presets before signing.
++  Future<String> _stageAppIcons(String bundleDir, String template) async {
++    var plistXml = template;
++    final paths = runtime.host.paths.context;
++    final entries = <String, Map<String, Set<String>>>{'iphone': {}, 'ipad': {}};
++    for (final set in ['AppIcon', 'IconMaterial', 'IconMidnight', 'IconVolt']) {
++      final source = paths.join(projectRoot, 'ios', 'Runner', 'Assets.xcassets', '$set.appiconset');
++      final manifest = runtime.host.fileSystem.file(paths.join(source, 'Contents.json'));
++      if (!manifest.existsSync()) {
++        if (set == 'AppIcon') return plistXml;
++        continue;
++      }
++      final contents = jsonDecode(await manifest.readAsString()) as Map<String, dynamic>;
++      for (final image in contents['images'] as List<dynamic>) {
++        final entry = image as Map<String, dynamic>;
++        final idiom = entry['idiom'];
++        final name = entry['filename'] as String?;
++        if (!entries.containsKey(idiom) || name == null) continue;
++        if (paths.basename(name) != name || !name.endsWith('.png')) {
++          throw FormatException('App icons must reference local PNG files: $name');
++        }
++        final icon = runtime.host.fileSystem.file(paths.join(source, name));
++        if (!icon.existsSync()) throw FormatException('Missing app icon: $name');
++        await icon.copy(paths.join(bundleDir, name));
++        entries[idiom]!.putIfAbsent(set, () => <String>{}).add(name);
++      }
++    }
++    String iconXml(Set<String> files) => '<dict><key>CFBundleIconFiles</key><array>' +
++        files.map((name) => '<string>$name</string>').join('') +
++        '</array><key>UIPrerenderedIcon</key><false/></dict>';
++    for (final idiom in entries.keys) {
++      final sets = entries[idiom]!;
++      if (sets['AppIcon']?.isNotEmpty != true) continue;
++      final key = idiom == 'ipad' ? 'CFBundleIcons~ipad' : 'CFBundleIcons';
++      final alternatives = sets.entries.where((entry) => entry.key != 'AppIcon')
++          .map((entry) => '<key>${entry.key}</key>${iconXml(entry.value)}').join('');
++      plistXml = PlistMutations.removePlistKey(plistXml, key);
++      plistXml = PlistMutations.insertBeforeEnd(plistXml,
++          '<key>$key</key><dict><key>CFBundlePrimaryIcon</key>${iconXml(sets['AppIcon']!)}'
++          '<key>CFBundleAlternateIcons</key><dict>$alternatives</dict></dict>');
++    }
++    return plistXml;
++  }
++

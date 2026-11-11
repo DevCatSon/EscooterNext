@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "models": [
+    {
+      "id": "gyrocopters-g30",
+      "name": "Gyrocopters G30",
+      "protocolId": "vicont",
+      "namePrefixes": ["SN_"],
+      "firmware": {
+        "instrumentHardware": 104,
+        "instrumentSoftware": 37,
+        "controllerHardware": 10,
+        "controllerSoftware": 44
+      },
+      "features": ["headlight", "cruise", "kickStart"],
+      "artwork": "assets/models/gyrocopters-g30.png",
+      "source": "Owner-identified G30; Pixel telemetry capture 2026-10-24. Firmware-based identification is provisional."
+    },
+    {
+      "id": "vicont-generic",
+      "name": "Unidentified Vicont-family scooter",
+      "protocolId": "vicont",
+      "features": ["headlight", "cruise", "kickStart"],
+      "artwork": "assets/scooter.png",
+      "source": "Original-client visibility defaults; exact model unconfirmed"
+    }
+  ]
+}

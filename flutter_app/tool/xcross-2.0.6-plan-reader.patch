@@ -1,0 +1,25 @@
+diff --git a/packages/xcross/lib/src/shared/flutter/swiftpm/plan_reader.dart b/packages/xcross/lib/src/shared/flutter/swiftpm/plan_reader.dart
+index 55c520c..dd123ed 100644
+--- a/packages/xcross/lib/src/shared/flutter/swiftpm/plan_reader.dart
++++ b/packages/xcross/lib/src/shared/flutter/swiftpm/plan_reader.dart
+@@ -39,0 +40,7 @@ final class SwiftPmPlanReader {
++    String planPath(String value) {
++      final withoutExtendedPrefix = Platform.isWindows && value.startsWith(r'\\?\')
++          ? value.substring(4)
++          : value;
++      return p.normalize(withoutExtendedPrefix);
++    }
++    final targetRoot = planPath(p.absolute(targetBuildDir));
+@@ -59,0 +67,6 @@ final class SwiftPmPlanReader {
++        final targetIndex = arguments.indexOf('-target');
++        if (targetIndex >= 0 && targetIndex + 1 < arguments.length &&
++            !arguments[targetIndex + 1].contains('-apple-ios')) {
++          // SwiftPM also plans host build tools; their headers do not belong to the iOS app.
++          continue;
++        }
+@@ -65 +78 @@ final class SwiftPmPlanReader {
+-          final header = p.normalize(arguments[index]);
++          final header = planPath(arguments[index]);
+@@ -67 +80 @@ final class SwiftPmPlanReader {
+-              !p.isWithin(p.normalize(p.absolute(targetBuildDir)), header) ||
++              !p.isWithin(targetRoot, header) ||

@@ -1,0 +1,16 @@
+diff --git a/packages/apple_developer_kit/lib/shared/appstoreconnect/appstoreconnect.dart b/packages/apple_developer_kit/lib/shared/appstoreconnect/appstoreconnect.dart
+index 662fda3..57db162 100644
+--- a/packages/apple_developer_kit/lib/shared/appstoreconnect/appstoreconnect.dart
++++ b/packages/apple_developer_kit/lib/shared/appstoreconnect/appstoreconnect.dart
+@@ -405,6 +405,5 @@ final class AscProvisioning {
+-    for (final id in knownIds ?? await client.listCertificateIds()) {
+-      onProgress?.call(
+-        'Revoking certificate $id: its private key is not on this machine. '
+-        'Apps still signed with it must be re-signed.',
+-      );
+-      await client.revokeCertificate(id);
++    final existing = knownIds ?? await client.listCertificateIds();
++    if (existing.isNotEmpty) {
++      throw AppleError('Existing Apple development certificates were preserved. '
++          'Signing needs a usable existing identity or an available certificate slot; '
++          'automatic certificate revocation is disabled for this deployment.');

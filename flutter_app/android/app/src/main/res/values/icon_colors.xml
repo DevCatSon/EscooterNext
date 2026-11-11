@@ -1,0 +1,6 @@
+<resources>
+    <color name="icon_standard_background">#2563eb</color>
+    <color name="icon_material_background">#eaddff</color>
+    <color name="icon_midnight_background">#12151c</color>
+    <color name="icon_volt_background">#c3f64b</color>
+</resources>

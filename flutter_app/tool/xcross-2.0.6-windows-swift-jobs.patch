@@ -1,0 +1,8 @@
+diff --git a/packages/xcross/lib/src/host/windows/flutter/swiftpm/swiftpm_host_policy.dart b/packages/xcross/lib/src/host/windows/flutter/swiftpm/swiftpm_host_policy.dart
+index efcc716..fda09fd 100644
+--- a/packages/xcross/lib/src/host/windows/flutter/swiftpm/swiftpm_host_policy.dart
++++ b/packages/xcross/lib/src/host/windows/flutter/swiftpm/swiftpm_host_policy.dart
+@@ -46,0 +47,3 @@ final class WindowsSwiftPmHostPolicy implements SwiftPmHostPolicy {
++    // Swift 6.4.1's implicit Clang cache can race even after module warm-up.
++    '--jobs',
++    '1',
