@@ -26,7 +26,7 @@ This project is independent and is not affiliated with Vicont or other scooter m
 
 ## Get started
 
-Download the signed **Escooter-Next-android.apk** from [GitHub Releases](https://github.com/DevCatSon/EscooterNext/releases). Pushes to `main` publish Android development previews. The [GitHub Actions workflow](https://github.com/DevCatSon/EscooterNext/actions/workflows/flutter-validate.yml) also builds unsigned iOS bundles, available under **Artifacts** on successful runs. The [original Android app](https://github.com/DevCatSon/EscooterControl) is kept as a separate legacy project.
+Download the signed Android **Escooter-Next-android.apk** or the unsigned iOS **Escooter-Next-ios-unsigned.ipa** from [GitHub Releases](https://github.com/DevCatSon/EscooterNext/releases). The [GitHub Actions workflow](https://github.com/DevCatSon/EscooterNext/actions/workflows/flutter-validate.yml) publishes previews from `main`. The iOS IPA must be signed separately before installing on an iPhone. The [original Android app](https://github.com/DevCatSon/EscooterControl) is kept as a separate legacy project.
 
 Follow [building from source](docs/BUILDING.md) to run the app or create an Android/iOS build. Android APKs are written to `flutter_app/build/app/outputs/flutter-apk/`.
 

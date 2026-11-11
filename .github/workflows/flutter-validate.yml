@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  BUILD_MODE: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'release' || 'debug' }}
+
 defaults:
   run:
     working-directory: flutter_app
@@ -51,8 +54,6 @@ jobs:
         commit: ${{ fromJSON(needs.plan.outputs.commits) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      BUILD_MODE: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'release' || 'debug' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -108,8 +109,8 @@ jobs:
           cache: true
       - run: xcodebuild -version
       - run: flutter pub get
-      - run: flutter build ios --debug --no-codesign
-      - name: Archive unsigned app preserving bundle permissions
+      - run: flutter build ios "--$BUILD_MODE" --no-codesign
+      - name: Package the unsigned iOS IPA
         run: |
           set -euo pipefail
           apps=(build/ios/iphoneos/*.app)
@@ -117,16 +118,27 @@ jobs:
             echo 'Expected exactly one unsigned iOS app bundle.' >&2
             exit 1
           fi
-          ditto -c -k --sequesterRsrc --keepParent "${apps[0]}" build/ios/Escooter-Next-unsigned.zip
+          app="${apps[0]}"
+          executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Info.plist")"
+          test -x "$app/$executable"
+          test ! -e "$app/embedded.mobileprovision"
+          test ! -e "$app/_CodeSignature/CodeResources"
+          staging="$(mktemp -d "$RUNNER_TEMP/escooter-ipa.XXXXXX")"
+          trap 'rm -rf -- "$staging"' EXIT
+          mkdir "$staging/Payload"
+          ditto "$app" "$staging/Payload/${app##*/}"
+          ipa="$PWD/build/ios/Escooter-Next-ios-unsigned.ipa"
+          ditto -c -k --norsrc --keepParent "$staging/Payload" "$ipa"
+          unzip -tq "$ipa"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Escooter-Next-iOS-debug-unsigned-${{ matrix.commit }}
-          path: flutter_app/build/ios/Escooter-Next-unsigned.zip
+          name: Escooter-Next-iOS-${{ env.BUILD_MODE }}-unsigned-${{ matrix.commit }}
+          path: flutter_app/build/ios/Escooter-Next-ios-unsigned.ipa
           if-no-files-found: error
           retention-days: 7
 
-  release_android:
-    needs: [plan, android]
+  release_preview:
+    needs: [plan, android, ios]
     if: ${{ !cancelled() && needs.plan.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
     strategy:
       fail-fast: false
@@ -155,6 +167,10 @@ jobs:
         with:
           name: Escooter-Next-Android-release-${{ matrix.commit }}
           path: unsigned
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: Escooter-Next-iOS-release-unsigned-${{ matrix.commit }}
+          path: release
       - name: Sign and verify the Android APK
         shell: bash
         env:
@@ -187,8 +203,10 @@ jobs:
             echo 'The APK does not match the Escooter Next release certificate.' >&2
             exit 1
           fi
-          (cd release && sha256sum Escooter-Next-android.apk > SHA256SUMS.txt)
-      - name: Publish the signed Android preview
+      - name: Write release checksums
+        working-directory: release
+        run: sha256sum Escooter-Next-android.apk Escooter-Next-ios-unsigned.ipa > SHA256SUMS.txt
+      - name: Publish the Android and iOS preview
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -204,14 +222,15 @@ jobs:
             fi
           else
             cat > "$RUNNER_TEMP/release-notes.md" <<EOF
-          Signed Android development preview for commit \`$COMMIT\`.
+          Escooter Next development preview for commit \`$COMMIT\`.
 
-          Download **Escooter-Next-android.apk**. **SHA256SUMS.txt** contains its SHA-256 checksum.
-
-          The unsigned iOS preview is available in the [Actions run](https://github.com/$repo/actions/runs/$GITHUB_RUN_ID).
+          - **Escooter-Next-android.apk**: signed Android APK.
+          - **Escooter-Next-ios-unsigned.ipa**: unsigned iOS IPA. Sign it separately before installing on an iPhone.
+          - **SHA256SUMS.txt**: checksums for both downloads.
           EOF
             gh release create "$tag" --repo "$repo" --target "$COMMIT" --draft --prerelease \
-              --title "Escooter Next Android preview (${COMMIT:0:7})" --notes-file "$RUNNER_TEMP/release-notes.md"
+              --title "Escooter Next preview (${COMMIT:0:7})" --notes-file "$RUNNER_TEMP/release-notes.md"
           fi
-          gh release upload "$tag" release/Escooter-Next-android.apk release/SHA256SUMS.txt --repo "$repo" --clobber
+          gh release upload "$tag" release/Escooter-Next-android.apk release/Escooter-Next-ios-unsigned.ipa \
+            release/SHA256SUMS.txt --repo "$repo" --clobber
           gh release edit "$tag" --repo "$repo" --draft=false
