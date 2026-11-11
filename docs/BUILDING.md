@@ -13,7 +13,7 @@ flutter test
 flutter build apk --debug --split-per-abi
 ```
 
-Debug APKs are under `build/app/outputs/flutter-apk/`. Use `app-arm64-v8a-debug.apk` on a typical modern Android phone and `app-x86_64-debug.apk` in the Android emulator. These use development signing. Production signing has deliberately not been configured; release artifacts must be signed by the owner before distribution.
+Debug APKs are under `build/app/outputs/flutter-apk/`. Use `app-arm64-v8a-debug.apk` on a typical modern Android phone and `app-x86_64-debug.apk` in the Android emulator. These use development signing. Local release builds are unsigned. The GitHub Actions release job signs the Android preview for direct downloads.
 
 For Android hot reload with `flutter run`, select the Original icon first. Flutter 3.47 discovers a real enabled default launcher activity but does not discover activity aliases. A normal installed app can use any icon preset.
 
@@ -67,9 +67,9 @@ Physical iPhone installation and the Demo Mode dashboard were verified on iOS 26
 
 1. Update the version/build in `pubspec.yaml` and run the relevant checks and builds for the reviewed source commit.
 2. Verify the package ID, version, icon and permissions. Test on the intended phone/scooter and record model, firmware, OS, controls tested and remaining limitations.
-3. Configure the owner's production signing outside Git. Android debug APKs use development signing; the current release variant needs a production identity. An unsigned iOS build needs signing before installation. Use the standard Xcode archive/export process for App Store distribution.
-4. Prepare GitHub release notes with the source commit, changes, device results, known issues, signing status and artifact hashes. Publish after maintainer review. Preview builds should be labelled as previews.
+3. Keep signing material outside Git. Android previews on GitHub Releases use the dedicated Escooter Next signing key; Android debug APKs use a separate development key. An unsigned iOS build needs an Apple signing identity and provisioning before installation. Use the standard Xcode archive/export process for App Store distribution.
+4. For a stable release, review device results and known issues, and include the source commit, signing status, and artifact hashes in the release notes.
 
-The [mobile workflow](../.github/workflows/flutter-validate.yml) builds Android and unsigned iOS candidates for each commit in a branch push (up to GitHub Actions’ 256-commit matrix limit). It also builds the proposed merge for pull requests. Artifact names include the commit SHA. It does not publish releases. Manual runs can select debug or release mode; iOS bundles are archived before upload to preserve their contents and permissions.
+The [mobile workflow](../.github/workflows/flutter-validate.yml) builds Android and unsigned iOS candidates for each commit in a branch push (up to GitHub Actions’ 256-commit matrix limit). It also builds the proposed merge for pull requests. Artifact names include the commit SHA. Pushes to `main` and manual runs on `main` build a universal Android APK, sign and verify it in the `android-release` environment, and publish it with a SHA-256 checksum on [GitHub Releases](https://github.com/DevCatSon/EscooterNext/releases). Other branches and pull requests upload debug Android builds. iOS bundles remain unsigned and are archived before upload to preserve their contents and permissions.
 
 Retain the app and dependency licenses, including the separately licensed xcross patches in [third-party notices](../THIRD_PARTY_NOTICES.md). Keep signing identities, profiles, Apple authentication, SDKs and local build caches outside source control.

@@ -1,22 +1,13 @@
-name: Build Escooter Next
+name: Build and release Escooter Next
 
 on:
   pull_request:
   push:
     branches: ['**']
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Candidate mode; release artifacts remain unsigned'
-        type: choice
-        options: [debug, release]
-        default: debug
 
 permissions:
   contents: read
-
-env:
-  BUILD_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'debug' }}
 
 defaults:
   run:
@@ -60,6 +51,8 @@ jobs:
         commit: ${{ fromJSON(needs.plan.outputs.commits) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      BUILD_MODE: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'release' || 'debug' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -77,16 +70,19 @@ jobs:
         with:
           flutter-version: '3.47.0'
           cache: true
-      - name: Validate candidate mode
-        run: |
-          case "$BUILD_MODE" in debug|release) ;; *) exit 1 ;; esac
       - name: Install Android platform
         run: sdkmanager 'platforms;android-37.0' 'build-tools;36.0.0' 'ndk;28.2.13676358'
       - run: flutter pub get
       - run: dart format --output=none --set-exit-if-changed lib test packages/platform_features/lib
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build apk "--$BUILD_MODE" --split-per-abi
+      - name: Build Android APKs
+        run: |
+          if [[ "$BUILD_MODE" == release ]]; then
+            flutter build apk --release
+          else
+            flutter build apk --debug --split-per-abi
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Escooter-Next-Android-${{ env.BUILD_MODE }}-${{ matrix.commit }}
@@ -110,12 +106,9 @@ jobs:
         with:
           flutter-version: '3.47.0'
           cache: true
-      - name: Validate candidate mode and record Xcode
-        run: |
-          case "$BUILD_MODE" in debug|release) ;; *) exit 1 ;; esac
-          xcodebuild -version
+      - run: xcodebuild -version
       - run: flutter pub get
-      - run: flutter build ios "--$BUILD_MODE" --no-codesign
+      - run: flutter build ios --debug --no-codesign
       - name: Archive unsigned app preserving bundle permissions
         run: |
           set -euo pipefail
@@ -127,7 +120,98 @@ jobs:
           ditto -c -k --sequesterRsrc --keepParent "${apps[0]}" build/ios/Escooter-Next-unsigned.zip
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: Escooter-Next-iOS-${{ env.BUILD_MODE }}-unsigned-${{ matrix.commit }}
+          name: Escooter-Next-iOS-debug-unsigned-${{ matrix.commit }}
           path: flutter_app/build/ios/Escooter-Next-unsigned.zip
           if-no-files-found: error
           retention-days: 7
+
+  release_android:
+    needs: [plan, android]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        commit: ${{ fromJSON(needs.plan.outputs.commits) }}
+    environment: android-release
+    concurrency:
+      group: android-release-${{ matrix.commit }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          packages: 'build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: Escooter-Next-Android-release-${{ matrix.commit }}
+          path: unsigned
+      - name: Sign and verify the Android APK
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          EXPECTED_CERT: acf324448279b29fd9b362bd2d1b902e92866b1ff764fcb34222c60e27a864be
+        run: |
+          set -euo pipefail
+          if [[ -z "$KEYSTORE_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo 'Escooter Next release signing secrets are missing.' >&2
+            exit 1
+          fi
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          test -x "$tools/apksigner"
+          test -f unsigned/app-release.apk
+          umask 077
+          key="$(mktemp "$RUNNER_TEMP/escooter-next.XXXXXX.p12")"
+          trap 'rm -f -- "$key"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$key"
+          unset KEYSTORE_BASE64
+          mkdir -p release
+          "$tools/zipalign" -f -P 16 4 unsigned/app-release.apk "$RUNNER_TEMP/aligned.apk"
+          "$tools/apksigner" sign --ks "$key" --ks-type PKCS12 --ks-key-alias escooter-next \
+            --ks-pass env:KEYSTORE_PASSWORD --key-pass env:KEYSTORE_PASSWORD \
+            --out release/Escooter-Next-android.apk "$RUNNER_TEMP/aligned.apk"
+          unset KEYSTORE_PASSWORD
+          "$tools/zipalign" -c -P 16 4 release/Escooter-Next-android.apk
+          cert="$("$tools/apksigner" verify --print-certs release/Escooter-Next-android.apk | awk '/^Signer #1 certificate SHA-256 digest:/ { print $NF }')"
+          if [[ "$cert" != "$EXPECTED_CERT" ]]; then
+            echo 'The APK does not match the Escooter Next release certificate.' >&2
+            exit 1
+          fi
+          (cd release && sha256sum Escooter-Next-android.apk > SHA256SUMS.txt)
+      - name: Publish the signed Android preview
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ matrix.commit }}
+        run: |
+          set -euo pipefail
+          tag="build-$COMMIT"
+          repo="$GITHUB_REPOSITORY"
+          if draft="$(gh release view "$tag" --repo "$repo" --json isDraft --jq .isDraft)"; then
+            if [[ "$draft" == false ]]; then
+              gh release view "$tag" --repo "$repo" --json url,assets
+              exit 0
+            fi
+          else
+            cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Signed Android development preview for commit \`$COMMIT\`.
+
+          Download **Escooter-Next-android.apk**. **SHA256SUMS.txt** contains its SHA-256 checksum.
+
+          The unsigned iOS preview is available in the [Actions run](https://github.com/$repo/actions/runs/$GITHUB_RUN_ID).
+          EOF
+            gh release create "$tag" --repo "$repo" --target "$COMMIT" --draft --prerelease \
+              --title "Escooter Next Android preview (${COMMIT:0:7})" --notes-file "$RUNNER_TEMP/release-notes.md"
+          fi
+          gh release upload "$tag" release/Escooter-Next-android.apk release/SHA256SUMS.txt --repo "$repo" --clobber
+          gh release edit "$tag" --repo "$repo" --draft=false
